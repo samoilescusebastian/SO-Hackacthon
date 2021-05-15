@@ -26,26 +26,30 @@ static size_t max_caches;
 
 static SOCKET server_socket;
 
-void print_page(void *data) {
-	page_t *page = (page_t*)data;
+void print_page(void *data)
+{
+	page_t *page = (page_t *)data;
 
 	printf("address=%p is_flushed=%c current_index=%ld", page->addr, page->is_flushed, page->current_index);
 }
 
-char compare_page(void *data_1, void *data_2) {
+char compare_page(void *data_1, void *data_2)
+{
 	page_t *page_1 = (page_t *)data_1;
 	page_t *page_2 = (page_t *)data_2;
 
 	return (page_1->addr == page_2->addr);
 }
 
-void free_page(void *data) {
-	page_t* page = (page_t *)data;
+void free_page(void *data)
+{
+	page_t *page = (page_t *)data;
 
 	free(page);
 }
 
-list_t* create_page_list() {
+list_t *create_page_list()
+{
 	list_t *list = (list_t *)malloc(sizeof(list_t));
 	pthread_t *thread;
 
@@ -53,6 +57,43 @@ list_t* create_page_list() {
 	list->compare_func = compare_page;
 	list->print_func = print_page;
 	list->free_func = free_page;
+	list->size = 0;
+	list->head = NULL;
+
+	return list;
+}
+
+void print_log(void *data)
+{
+	logmemcache_page_t *log = (logmemcache_page_t *)data;
+
+	printf("id=%p page=%p offset=%ul length=%ul ", log->id, log->page, log->offset, log->length);
+}
+
+char compare_log(void *data_1, void *data_2)
+{
+	logmemcache_page_t *log_1 = (logmemcache_page_t *)data_1;
+	logmemcache_page_t *log_2 = (logmemcache_page_t *)data_2;
+
+	return (log_1->id == log_1->id);
+}
+
+void free_log(void *data)
+{
+	logmemcache_page_t *page = (logmemcache_page_t *)data;
+
+	free(page);
+}
+
+list_t *create_page_list()
+{
+	list_t *list = (list_t *)malloc(sizeof(list_t));
+	pthread_t *thread;
+
+	DIE(list == NULL, "can not alloc memmory!");
+	list->compare_func = compare_log;
+	list->print_func = print_log;
+	list->free_func = free_log;
 	list->size = 0;
 	list->head = NULL;
 
@@ -86,23 +127,26 @@ struct logmemcache_client_st *logmemcache_create_client(SOCKET client_sock)
 }
 
 static int logmemcache_add_client(struct logmemcache_client_st *client,
-	char *name)
+								  char *name)
 {
 	int err = 0;
 	size_t i;
 
-	for (i = 0; i < cache_count; i++) {
+	for (i = 0; i < cache_count; i++)
+	{
 		if (caches[i] == NULL)
 			continue;
 		if (caches[i]->service_name == NULL)
 			continue;
-		if (strcmp(caches[i]->service_name, name) == 0) {
+		if (strcmp(caches[i]->service_name, name) == 0)
+		{
 			client->cache = caches[i];
 			goto found;
 		}
 	}
 
-	if (cache_count == max_caches) {
+	if (cache_count == max_caches)
+	{
 		return -1;
 	}
 
@@ -128,13 +172,13 @@ static int logmemcache_unsubscribe_client(struct logmemcache_client_st *client)
 }
 
 static int logmemcache_add_log(struct logmemcache_client_st *client,
- struct client_logline *log)
+							   struct client_logline *log)
 {
- size_t logsize;
- page_t *page = get_last_element(client->cache->pages);
- write_to_page(page, log->logline, client->cache->pages);
- 
- return 0;
+	size_t logsize;
+	page_t *page = get_last_element(client->cache->pages);
+	write_to_page(page, log->logline, client->cache->pages, client->cache->log_list);
+
+	return 0;
 }
 
 static int logmemcache_flush(struct logmemcache_client_st *client)
@@ -163,7 +207,8 @@ static void parse_command(struct command *cmd, char *string, ssize_t *datalen)
 	line = strchr(command, ' ');
 
 	cmd->data = NULL;
-	if (line != NULL) {
+	if (line != NULL)
+	{
 		line[0] = '\0';
 		cmd->data = strdup(line + 1);
 		*datalen -= strlen(command) + 1;
@@ -172,7 +217,7 @@ static void parse_command(struct command *cmd, char *string, ssize_t *datalen)
 	cmd->op = get_op_by_str(command);
 
 	printf("command = %s, line = %s\n", cmd->op->op_str,
-			cmd->data ? cmd->data : "null");
+		   cmd->data ? cmd->data : "null");
 
 	free(command);
 }
@@ -208,25 +253,30 @@ int get_command(struct logmemcache_client_st *client)
 		return -1;
 
 	parse_command(&cmd, buffer, &recv_size);
-	if (recv_size > LINE_SIZE) {
+	if (recv_size > LINE_SIZE)
+	{
 		reply_msg = "message too long";
 		goto end;
 	}
 
-	if (cmd.op->requires_auth && client->cache->service_name == NULL) {
+	if (cmd.op->requires_auth && client->cache->service_name == NULL)
+	{
 		reply_msg = "authentication required";
 		goto end;
 	}
 
-	if (cmd.data != NULL) {
+	if (cmd.data != NULL)
+	{
 		err = validate_arg(cmd.data, recv_size);
-		if (err != 0) {
+		if (err != 0)
+		{
 			reply_msg = "invalid argument provided";
 			goto end;
 		}
 	}
 
-	switch (cmd.op->code) {
+	switch (cmd.op->code)
+	{
 	case CONNECT:
 	case SUBSCRIBE:
 		err = logmemcache_add_client(client, cmd.data);
@@ -276,21 +326,30 @@ end:
 
 page_t *init_new_page(char *addr)
 {
- page_t *new_page = malloc(sizeof(page_t));
- new_page->addr = addr;
- new_page->current_index = 0;
- new_page->is_flushed = 0;
- 
- return new_page;
+	page_t *new_page = malloc(sizeof(page_t));
+	new_page->addr = addr;
+	new_page->current_index = 0;
+	new_page->is_flushed = 0;
+
+	return new_page;
 }
- 
-void write_to_page(page_t *page, char *data, list_t *page_list)
+logmemcache_page_t *init_new_log(size_t id, page_t *page, size_t offset, size_t length)
+{
+	logmemcache_page_t *log = malloc(sizeof(logmemcache_page_t));
+	log->id = id;
+	log->length = length;
+	log->page = page;
+	log->offset = offset;
+	return log;
+}
+void write_to_page(page_t *page, char *data, list_t *page_list, list_t *log_list)
 {
 	char *mem;
 	page_t *new_page = NULL;
 	size_t pagesize = getpagesize(), copied;
 	size_t data_size = strlen(data);
-	
+	logmemcache_page_t *page_log;
+	page_log = init_new_log(log_list->size, page, page->current_index, data_size);
 	if (pagesize - page->current_index >= data_size)
 	{
 		memcpy(page->addr + page->current_index, data, data_size);
@@ -299,12 +358,22 @@ void write_to_page(page_t *page, char *data, list_t *page_list)
 	else
 	{
 		copied = pagesize - page->current_index;
-		memcpy(page->addr + page->current_index, data, copied);
-		page->current_index = pagesize;
+		if (copied != 0)
+		{
+			memcpy(page->addr + page->current_index, data, copied);
+			page->current_index = pagesize;
+		}
+		else
+		{
+			free_log(page_log);
+		}
 		mem = mmap(NULL, pagesize, PROT_WRITE, MAP_PRIVATE | MAP_FIXED | MAP_ANON, -1, 0);
 		DIE(mem == MAP_FAILED, "failed to map memory!");
-		
 		new_page = init_new_page(mem);
+		if (copied == 0)
+		{
+			page_log = init_new_log(log_list->size, new_page, new_page->current_index, data_size);
+		}
 		memcpy(mem, data + copied, data_size - copied);
 		push_back(page_list, new_page);
 	}

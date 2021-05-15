@@ -13,38 +13,51 @@
 #include <sys/socket.h>
 #endif
 
-#define	DEFAULT_CLIENTS_NO	20
-#define	FLUSH_TIME		1	/* minutes */
-#define	LOGFILE_NAME_LEN	128
+#define DEFAULT_CLIENTS_NO 20
+#define FLUSH_TIME 1 /* minutes */
+#define LOGFILE_NAME_LEN 128
 
 #ifdef __unix__
-#define SEND_FLAGS	MSG_NOSIGNAL
+#define SEND_FLAGS MSG_NOSIGNAL
 typedef int HANDLE;
 #elif defined(_WIN32)
-#define SEND_FLAGS		0
+#define SEND_FLAGS 0
 #endif
 
-typedef struct page {
-	char* addr;
+typedef struct page
+{
+	char *addr;
 	char is_flushed;
 	size_t current_index;
-}page_t;
+} page_t;
 
-struct logmemcache_cache {
+struct logmemcache_cache
+{
 	char *service_name;
-	list_t* pages;
+	list_t *pages;
+	list_t *log_list;
 	size_t pages_no;
 };
 
-struct logmemcache_client_st {
+struct logmemcache_client_st
+{
 	SOCKET client_sock;
 	struct logmemcache_cache *cache;
 };
 
-struct command {
+struct command
+{
 	const struct op *op;
 	char *data;
 };
+
+typedef struct logmemcache_page
+{
+	size_t id;
+	page_t *page;
+	size_t offset;
+	size_t length;
+} logmemcache_page_t;
 
 char *logfile_path;
 
@@ -56,9 +69,9 @@ void logmemcache_init_server_os(SOCKET *);
 int logmemcache_init_client_cache(struct logmemcache_cache *);
 int logmemcache_unsubscribe_os(struct logmemcache_client_st *);
 int logmemcache_add_log_os(struct logmemcache_client_st *,
-	struct client_logline *);
+						   struct client_logline *);
 int logmemcache_flush_os(struct logmemcache_client_st *);
-list_t* create_page_list();
+list_t *create_page_list();
 page_t *init_new_page(char *addr);
-void write_to_page(page_t *page, char *data, list_t *page_list);
+void write_to_page(page_t *page, char *data, list_t *page_list, list_t *log_list);
 #endif
