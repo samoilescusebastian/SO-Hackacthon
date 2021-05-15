@@ -67,7 +67,7 @@ void print_log(void *data)
 {
 	logmemcache_page_t *log = (logmemcache_page_t *)data;
 
-	printf("id=%p page=%p offset=%ul length=%ul ", log->id, log->page, log->offset, log->length);
+	printf("id=%p page=%p offset=%ul length=%ul ", log->id, log->f_page, log->offset, log->length);
 }
 
 char compare_log(void *data_1, void *data_2)
@@ -75,7 +75,7 @@ char compare_log(void *data_1, void *data_2)
 	logmemcache_page_t *log_1 = (logmemcache_page_t *)data_1;
 	logmemcache_page_t *log_2 = (logmemcache_page_t *)data_2;
 
-	return (log_1->id == log_1->id);
+	return (log_1->id == log_2->id);
 }
 
 void free_log(void *data)
@@ -85,10 +85,9 @@ void free_log(void *data)
 	free(page);
 }
 
-list_t *create_page_list()
+list_t *create_log_list()
 {
 	list_t *list = (list_t *)malloc(sizeof(list_t));
-	pthread_t *thread;
 
 	DIE(list == NULL, "can not alloc memmory!");
 	list->compare_func = compare_log;
@@ -174,16 +173,34 @@ static int logmemcache_unsubscribe_client(struct logmemcache_client_st *client)
 static int logmemcache_add_log(struct logmemcache_client_st *client,
 							   struct client_logline *log)
 {
-	size_t logsize;
-	page_t *page = get_last_element(client->cache->pages);
-	write_to_page(page, log->logline, client->cache->pages, client->cache->log_list);
+	write_to_page(client, (char*)log);
 
 	return 0;
 }
 
 static int logmemcache_flush(struct logmemcache_client_st *client)
 {
-
+	int fd;
+	char path[100], dir[20];
+	strcpy(dir, "logs_logmemcache");
+	if (client->cache->no_flushes != 0)
+	{
+		sprintf(path, "%s/%s%d.log", dir, client->cache->service_name, client->cache->no_flushes);
+	}
+	else
+	{
+		sprintf(path, "%s/%s.log", dir, client->cache->service_name);
+	}
+	fprintf(stderr, "%s\n", path);
+	fd = open(path, O_CREAT | O_TRUNC | O_RDWR, 0644);
+	DIE(fd < 0, "failed to open file!");
+	list_iterator_t it = get_list_it(client->cache->logs);
+	while (has_next_list_it(it))
+	{	
+		logmemcache_page_t *log = (logmemcache_page_t *)get_next_list_it(&it);
+		write_to_file(fd, log);
+	}
+	close(fd);
 	return 0;
 }
 
@@ -193,9 +210,33 @@ static int logmemcache_send_stats(struct logmemcache_client_st *client)
 	return 0;
 }
 
+char* extract_log(logmemcache_page_t *log_info) {
+	char *log = malloc(log_info->length);
+	size_t copied;
+	if (log_info->offset + log_info->length  <= PAGE_SIZE) {
+		memcpy(log, log_info->f_page + log_info->offset, log_info->length);
+	} else {
+		copied = log_info->offset + log_info->length - PAGE_SIZE;
+		memcpy(log, log_info->f_page + log_info->offset, copied);
+		memcpy(log + copied, log_info->s_page, log_info->length - copied);
+	}
+
+	return log;
+}
+
 static int logmemcache_send_loglines(struct logmemcache_client_st *client)
 {
+	char *log;
+	list_t * logs = client->cache->logs;
+	logmemcache_page_t *log_info;
+	list_iterator_t it = get_list_it(logs);
 
+	while (has_next_list_it(it)) {
+		log_info = get_next_list_it(&it);
+		log = extract_log(log_info);
+		send_data(client->client_sock, log, log_info->length, SEND_FLAGS);
+	}
+	
 	return 0;
 }
 
@@ -285,7 +326,7 @@ int get_command(struct logmemcache_client_st *client)
 		err = logmemcache_send_stats(client);
 		break;
 	case ADD:
-		log = NULL;
+		log = (struct client_logline*)cmd.data;
 		err = logmemcache_add_log(client, log);
 		break;
 	case FLUSH:
@@ -338,17 +379,25 @@ logmemcache_page_t *init_new_log(size_t id, page_t *page, size_t offset, size_t 
 	logmemcache_page_t *log = malloc(sizeof(logmemcache_page_t));
 	log->id = id;
 	log->length = length;
-	log->page = page;
+	log->f_page = page;
 	log->offset = offset;
 	return log;
 }
-void write_to_page(page_t *page, char *data, list_t *page_list, list_t *log_list)
+void write_to_page(struct logmemcache_client_st* client, char *data)
 {
 	char *mem;
-	page_t *new_page = NULL;
+	list_t *page_list = client->cache->pages;
+	list_t *log_list = client->cache->logs;
+	page_t *page = client->cache->last_page;
 	size_t pagesize = getpagesize(), copied;
 	size_t data_size = strlen(data);
 	logmemcache_page_t *page_log;
+	if (page == NULL) {
+		mem = mmap(NULL, pagesize, PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
+		DIE(mem == MAP_FAILED, "failed to map memory!");
+		page = init_new_page(mem);
+		client->cache->last_page = page;
+	}
 	page_log = init_new_log(log_list->size, page, page->current_index, data_size);
 	if (pagesize - page->current_index >= data_size)
 	{
@@ -367,30 +416,54 @@ void write_to_page(page_t *page, char *data, list_t *page_list, list_t *log_list
 		{
 			free_log(page_log);
 		}
-		mem = mmap(NULL, pagesize, PROT_WRITE, MAP_PRIVATE | MAP_FIXED | MAP_ANON, -1, 0);
+
+		mem = mmap(NULL, pagesize, PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
 		DIE(mem == MAP_FAILED, "failed to map memory!");
-		new_page = init_new_page(mem);
+		page = init_new_page(mem);
+		client->cache->last_page = page;
+
+		page_log->s_page = page;
 		if (copied == 0)
 		{
-			page_log = init_new_log(log_list->size, new_page, new_page->current_index, data_size);
+			page_log = init_new_log(log_list->size, page, page->current_index, data_size);
 		}
 		memcpy(mem, data + copied, data_size - copied);
-		push_back(page_list, new_page);
 	}
+	push_back(page_list, page);
+	push_back(log_list, page_log);
+
 }
-// int main(int argc, char *argv[])
-// {
-// 	setbuf(stdout, NULL);
 
-// 	if (argc == 1)
-// 		logfile_path = strdup("logs_logmemcache");
-// 	else
-// 		logfile_path = strdup(argv[1]);
+void write_to_file(int fd, logmemcache_page_t *log)
+{
+	size_t total_bytes, result, bytes_written = 0;
+	char *addr;
+	total_bytes = log->length;
+	addr = log->f_page->addr + log->offset;
+	do
+	{
+		result = write(fd, addr + bytes_written, total_bytes - bytes_written);
+		bytes_written += result;
+	} while (bytes_written < total_bytes);
+	result = write(fd, "\n", 1);
+	DIE(result < 0, "failed to write");
 
-// 	if (init_logdir(logfile_path) < 0)
-// 		exit(-1);
 
-// 	init_server();
+}
 
-// 	return 0;
-// }
+int main(int argc, char *argv[])
+{
+	setbuf(stdout, NULL);
+
+	if (argc == 1)
+		logfile_path = strdup("logs_logmemcache");
+	else
+		logfile_path = strdup(argv[1]);
+
+	if (init_logdir(logfile_path) < 0)
+		exit(-1);
+
+	init_server();
+
+	return 0;
+}

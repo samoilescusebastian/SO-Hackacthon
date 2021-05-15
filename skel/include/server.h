@@ -34,8 +34,10 @@ typedef struct page
 struct logmemcache_cache
 {
 	char *service_name;
+	int no_flushes;
+	page_t *last_page;
 	list_t *pages;
-	list_t *log_list;
+	list_t *logs;
 	size_t pages_no;
 };
 
@@ -54,7 +56,8 @@ struct command
 typedef struct logmemcache_page
 {
 	size_t id;
-	page_t *page;
+	page_t *f_page;
+	page_t *s_page;
 	size_t offset;
 	size_t length;
 } logmemcache_page_t;
@@ -72,6 +75,8 @@ int logmemcache_add_log_os(struct logmemcache_client_st *,
 						   struct client_logline *);
 int logmemcache_flush_os(struct logmemcache_client_st *);
 list_t *create_page_list();
+list_t *create_log_list();
 page_t *init_new_page(char *addr);
-void write_to_page(page_t *page, char *data, list_t *page_list, list_t *log_list);
+void write_to_page(struct logmemcache_client_st* client, char *data);
+void write_to_file(int fd, logmemcache_page_t *log);
 #endif

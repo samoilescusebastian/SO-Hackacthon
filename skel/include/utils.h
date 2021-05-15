@@ -35,7 +35,7 @@ typedef int ssize_t;
 #define	TIME_SIZE		20  /* strlen("YYYY/mm/dd-HH:MM:SS") + 1 */
 #define	LOGLINE_SIZE		(LINE_SIZE - TIME_SIZE)
 #define	STATS_FORMAT		"Status at %s\nMemory: %ldKB\nLoglines: %lu\n"
-
+#define PAGE_SIZE 4096
 #define nitems(arr)		(sizeof(arr) / sizeof(*arr))
 
 

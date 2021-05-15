@@ -37,6 +37,7 @@ int logmemcache_client_init_os(struct logmemcache_st *client, char *name)
 	server.sin_port = htons(SERVER_PORT);
 	server.sin_addr.s_addr = inet_addr(SERVER_IP);
 
+
 	if (connect(client->socket , (struct sockaddr *)&server,
 			sizeof(server)) < 0)
 		return -1;

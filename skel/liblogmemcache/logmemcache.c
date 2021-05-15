@@ -22,9 +22,11 @@ static int logmemcache_client_init(struct logmemcache_st *client, char *name)
 	const struct op *op;
 	size_t len;
 
+
 	err = logmemcache_client_init_os(client, name);
 	if (err != 0)
 		return err;
+
 
 	memset(buffer, 0, sizeof(buffer));
 	memset(response, 0, sizeof(response));
@@ -38,11 +40,14 @@ static int logmemcache_client_init(struct logmemcache_st *client, char *name)
 		return -1;
 	}
 
+	fprintf(stderr, "eroare\n");
+
 	if (recv_data(client->socket, response, sizeof(response), 0) < 0) {
 		fprintf(stderr, "Error while getting response from server\n");
 		return -1;
 	}
 	fprintf(stdout, "%s\n", response);
+
 
 	return 0;
 }

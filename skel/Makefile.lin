@@ -14,7 +14,7 @@ logmemcache.o: liblogmemcache/logmemcache.c include/logmemcache.h include/utils.
 logmemcache_os.o: liblogmemcache/lin/logmemcache_os.c include/logmemcache.h include/utils.h
 	$(CC) $(CFLAGS) -o $@ -c $<
 
-logmemcached: server.o server_os.o utils.o
+logmemcached: server.o server_os.o utils.o list.o node.o
 	$(CC) $(LDLIBS) -o $@ $^
 
 server.o: server/server.c include/server.h include/utils.h
@@ -25,7 +25,12 @@ server_os.o: server/lin/server_os.c include/server.h include/utils.h
 
 utils.o: utils.c include/utils.h
 	$(CC) $(CFLAGS) -o $@ -c $<
-
+	
+node.o:  node.c include/node.h
+	$(CC) $(CFLAGS) -o $@ -c $<
+	
+list.o: list.c include/list.h
+	$(CC) $(CFLAGS) -o $@ -c $<
 .PHONY: clean
 clean:
 	rm -f *.o *.so logmemcached

@@ -66,9 +66,7 @@ void *start_client_thread(void *data) {
 }
 
 list_t* create_thread_list() {
-	list_t *list = (list_t *)malloc(sizeof(list_t));
-	pthread_t *thread;
-	
+	list_t *list = (list_t *)malloc(sizeof(list_t));	
 	DIE(list == NULL, "can not alloc memmory!");
 	list->compare_func = compare_thread;
 	list->print_func = print_thread;
@@ -135,9 +133,12 @@ void logmemcache_init_server_os(int *socket_server)
 }
 
 int logmemcache_init_client_cache(struct logmemcache_cache *cache)
-{
+{	
+	cache->no_flushes = 0;
 	cache->pages_no = 0;
 	cache->pages = create_page_list();
+	cache->logs = create_log_list();
+	cache->last_page = NULL;
 	return 0;
 }
 
@@ -159,37 +160,37 @@ int logmemcache_unsubscribe_os(struct logmemcache_client_st *client)
 
 	return 0;
 }
-int main() {
-	list_t *list = (list_t *)malloc(sizeof(list_t));
-	pthread_t *thread;
-	DIE(list == NULL, "can not alloc memmory!");
-	list->compare_func = compare_thread;
-	list->print_func = print_thread;
-	list->free_func = free_thread;
-	list->size = 0;
-	list->head = NULL;
+// int main() {
+// 	list_t *list = (list_t *)malloc(sizeof(list_t));
+// 	pthread_t *thread;
+// 	DIE(list == NULL, "can not alloc memmory!");
+// 	list->compare_func = compare_thread;
+// 	list->print_func = print_thread;
+// 	list->free_func = free_thread;
+// 	list->size = 0;
+// 	list->head = NULL;
 	
 
 
-	for (int i = 0; i < 100; i++) {
-		thread = malloc(sizeof(pthread_t));
-		DIE (thread == NULL, "can not alloc memmory!");
-		pthread_create(thread, NULL, start_client_thread, &i);
-		push_back(list, thread);
-	}
+// 	for (int i = 0; i < 100; i++) {
+// 		thread = malloc(sizeof(pthread_t));
+// 		DIE (thread == NULL, "can not alloc memmory!");
+// 		pthread_create(thread, NULL, start_client_thread, &i);
+// 		push_back(list, thread);
+// 	}
 
-	print_list(list);
+// 	print_list(list);
 
-	list_iterator_t it = get_list_it(list);
-	pthread_t tid;
-	while (has_next_list_it(it)) {
-		pthread_join(*(pthread_t*)get_next_list_it(&it), NULL);
+// 	list_iterator_t it = get_list_it(list);
+// 	pthread_t tid;
+// 	while (has_next_list_it(it)) {
+// 		pthread_join(*(pthread_t*)get_next_list_it(&it), NULL);
 
-	}
+// 	}
 
-	thread = get_last_element(list);
+// 	thread = get_last_element(list);
 
-	print_thread(thread);
-	free(it);
-	free_list(list);
-}
+// 	print_thread(thread);
+// 	free(it);
+// 	free_list(list);
+// }
