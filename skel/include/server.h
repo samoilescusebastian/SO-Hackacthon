@@ -27,7 +27,7 @@ typedef int HANDLE;
 typedef struct page
 {
 	char *addr;
-	char is_flushed;
+	char is_unmapped;
 	size_t current_index;
 } page_t;
 
@@ -36,7 +36,6 @@ struct logmemcache_cache
 	char *service_name;
 	int no_flushes;
 	page_t *last_page;
-	list_t *pages;
 	list_t *logs;
 	size_t pages_no;
 };
@@ -44,6 +43,7 @@ struct logmemcache_cache
 struct logmemcache_client_st
 {
 	SOCKET client_sock;
+	char is_connected;
 	struct logmemcache_cache *cache;
 };
 

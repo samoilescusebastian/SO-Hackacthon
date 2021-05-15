@@ -746,12 +746,14 @@ static int combo_test_8(const void *param)
 		printf("Client not connected\n");
 		return 0;
 	}
-
+	fprintf(stderr, "am iesit create\n");
 	ret = client_add_lines(client, 20, SHORT_LINE_LEN, 1);
 	if (ret != 0) {
 		printf("Failed to add line\n");
 		goto done;
 	}
+	
+		fprintf(stderr, "am iesit add lines\n");
 
 	ret = print_client_logs(client);
 	if (ret != 0)

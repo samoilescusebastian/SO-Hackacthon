@@ -30,7 +30,7 @@ void print_page(void *data)
 {
 	page_t *page = (page_t *)data;
 
-	printf("address=%p is_flushed=%c current_index=%ld", page->addr, page->is_flushed, page->current_index);
+	printf("address=%p is_flushed=%c current_index=%ld", page->addr, page->is_unmapped, page->current_index);
 }
 
 char compare_page(void *data_1, void *data_2)
@@ -119,6 +119,7 @@ struct logmemcache_client_st *logmemcache_create_client(SOCKET client_sock)
 	struct logmemcache_client_st *client;
 
 	client = malloc(sizeof(*client));
+	client->is_connected = 1;
 	client->client_sock = client_sock;
 	client->cache = NULL;
 
@@ -159,14 +160,8 @@ found:
 }
 
 static int logmemcache_disconnect_client(struct logmemcache_client_st *client)
-{
-
-	return 0;
-}
-
-static int logmemcache_unsubscribe_client(struct logmemcache_client_st *client)
-{
-
+{	
+	client->is_connected = 0;
 	return 0;
 }
 
@@ -205,16 +200,20 @@ static int logmemcache_flush(struct logmemcache_client_st *client)
 }
 
 static int logmemcache_send_stats(struct logmemcache_client_st *client)
-{
+{	
+	char buf[1000];
+	size_t memory = client->cache->pages_no * 4;
+	sprintf(buf, STATS_FORMAT, client->cache->service_name, memory, client->cache->pages_no);
+	send_data(client->client_sock, buf, strlen(buf), SEND_FLAGS);
 
-	return 0;
+ 	return 0;
 }
 
 char* extract_log(logmemcache_page_t *log_info) {
 	char *log = malloc(log_info->length);
 	size_t copied;
 	if (log_info->offset + log_info->length  <= PAGE_SIZE) {
-		memcpy(log, log_info->f_page + log_info->offset, log_info->length);
+		memcpy(log, log_info->f_page->addr + log_info->offset, log_info->length);
 	} else {
 		copied = log_info->offset + log_info->length - PAGE_SIZE;
 		memcpy(log, log_info->f_page + log_info->offset, copied);
@@ -226,17 +225,42 @@ char* extract_log(logmemcache_page_t *log_info) {
 
 static int logmemcache_send_loglines(struct logmemcache_client_st *client)
 {
-	char *log;
+	char *log, logs_number[5];
 	list_t * logs = client->cache->logs;
 	logmemcache_page_t *log_info;
 	list_iterator_t it = get_list_it(logs);
-
+    
+	sprintf(logs_number, "%ld", logs->size);
+	send_data(client->client_sock, logs_number, strlen(logs_number), SEND_FLAGS);
 	while (has_next_list_it(it)) {
 		log_info = get_next_list_it(&it);
 		log = extract_log(log_info);
+		fprintf(stderr, "%s\n", log);
 		send_data(client->client_sock, log, log_info->length, SEND_FLAGS);
 	}
 	
+	return 0;
+}
+
+static int logmemcache_unsubscribe_client(struct logmemcache_client_st *client)
+{
+ 
+	list_iterator_t it = get_list_it(client->cache->logs);
+	while (has_next_list_it(it))
+	{
+		logmemcache_page_t *log = (logmemcache_page_t *)get_next_list_it(&it);
+		if (!log->f_page->is_unmapped)
+		{
+			munmap(log->f_page->addr, PAGE_SIZE);
+		}
+		if (!log->s_page->is_unmapped)
+		{
+			munmap(log->s_page->addr, PAGE_SIZE);
+		}
+	}
+ 	free_list(client->cache->logs);
+
+	logmemcache_disconnect_client(client);
 	return 0;
 }
 
@@ -361,7 +385,8 @@ end:
 	err = send_data(client->client_sock, response, LINE_SIZE, SEND_FLAGS);
 	if (err < 0)
 		return -1;
-
+	if (!client->is_connected)
+		close(client->client_sock);
 	return err;
 }
 
@@ -370,10 +395,11 @@ page_t *init_new_page(char *addr)
 	page_t *new_page = malloc(sizeof(page_t));
 	new_page->addr = addr;
 	new_page->current_index = 0;
-	new_page->is_flushed = 0;
+	new_page->is_unmapped = 0;
 
 	return new_page;
 }
+
 logmemcache_page_t *init_new_log(size_t id, page_t *page, size_t offset, size_t length)
 {
 	logmemcache_page_t *log = malloc(sizeof(logmemcache_page_t));
@@ -383,10 +409,10 @@ logmemcache_page_t *init_new_log(size_t id, page_t *page, size_t offset, size_t 
 	log->offset = offset;
 	return log;
 }
+
 void write_to_page(struct logmemcache_client_st* client, char *data)
 {
 	char *mem;
-	list_t *page_list = client->cache->pages;
 	list_t *log_list = client->cache->logs;
 	page_t *page = client->cache->last_page;
 	size_t pagesize = getpagesize(), copied;
@@ -396,6 +422,7 @@ void write_to_page(struct logmemcache_client_st* client, char *data)
 		mem = mmap(NULL, pagesize, PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
 		DIE(mem == MAP_FAILED, "failed to map memory!");
 		page = init_new_page(mem);
+		client->cache->pages_no++;
 		client->cache->last_page = page;
 	}
 	page_log = init_new_log(log_list->size, page, page->current_index, data_size);
@@ -420,6 +447,7 @@ void write_to_page(struct logmemcache_client_st* client, char *data)
 		mem = mmap(NULL, pagesize, PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
 		DIE(mem == MAP_FAILED, "failed to map memory!");
 		page = init_new_page(mem);
+		client->cache->pages_no++;
 		client->cache->last_page = page;
 
 		page_log->s_page = page;
@@ -429,7 +457,6 @@ void write_to_page(struct logmemcache_client_st* client, char *data)
 		}
 		memcpy(mem, data + copied, data_size - copied);
 	}
-	push_back(page_list, page);
 	push_back(log_list, page_log);
 
 }

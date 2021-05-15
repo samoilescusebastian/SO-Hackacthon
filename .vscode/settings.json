@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "functional": "c"
+        "functional": "c",
+        "server.h": "c",
+        "mman.h": "c"
     }
 }

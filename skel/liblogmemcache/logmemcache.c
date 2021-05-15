@@ -158,6 +158,7 @@ struct client_logline **logmemcache_get_logs(struct logmemcache_st *client,
 	}
 
 	rc = sscanf(response, UINT64_FMT, &num_logs);
+	fprintf(stderr, "%d\n", num_logs);
 	if (rc == 0)
 		return NULL;
 

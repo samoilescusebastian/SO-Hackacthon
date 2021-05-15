@@ -30,8 +30,8 @@ int main() {
 	longline[LOGLINE_SIZE] = 0;
 	logmemcache_add_log(client, longline);
 
-	stats = logmemcache_get_stats(client);
-	printf("%s\n", stats);
+	// stats = logmemcache_get_stats(client);
+	// printf("%s\n", stats);
 	lines = logmemcache_get_logs(client, 0, 0, &logs);
 
 	for (i = 0; i < logs; i++) {

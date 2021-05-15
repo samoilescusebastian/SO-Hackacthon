@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS = -fPIC -Wall
+CFLAGS = -fPIC -Wall -g
 LDLIBS = -lpthread -pthread
 
 .PHONY: build

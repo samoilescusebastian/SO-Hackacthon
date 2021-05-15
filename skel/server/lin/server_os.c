@@ -136,7 +136,6 @@ int logmemcache_init_client_cache(struct logmemcache_cache *cache)
 {	
 	cache->no_flushes = 0;
 	cache->pages_no = 0;
-	cache->pages = create_page_list();
 	cache->logs = create_log_list();
 	cache->last_page = NULL;
 	return 0;
