@@ -7,6 +7,7 @@ typedef node_t *list_iterator_t;
 
 typedef struct list {
 	node_t *head;
+	node_t *tail;
 	size_t size;
 	/*
 	 * functii generice pentru printare, eliberarea si compararea unui nod
@@ -27,6 +28,6 @@ char delete_element(list_t *list, void *data);
 list_iterator_t get_list_it(list_t *list);
 char has_next_list_it(list_iterator_t it);
 void *get_next_list_it(list_iterator_t *it);
-list_t *create_string_list(void);
+void *get_last_element(list_t* list);
 
 #endif

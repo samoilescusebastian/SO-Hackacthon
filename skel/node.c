@@ -4,12 +4,13 @@
 
 #include "include/node.h"
 
-node_t *push_node_back(node_t *head, void *data)
+node_t *push_node_back(node_t *head, void *data, node_t** tail)
 {
 	node_t *it;
 
 	if (head == NULL) {
 		node_t *node = (node_t *)(malloc(sizeof(node_t)));
+		*tail = node;
 
 		if (node == NULL)
 			return NULL;
@@ -29,6 +30,7 @@ node_t *push_node_back(node_t *head, void *data)
 
 	it->next->data = data;
 	it->next->next = NULL;
+	*tail = it->next;
 
 	return head;
 }
@@ -74,7 +76,7 @@ void print_nodes(node_t *head, void(*print_data)(void *data))
 	}
 }
 
-node_t *delete_node(node_t *head, void *value, void (*free_func)(void *),
+node_t *delete_node(node_t *head, node_t** tail, void *value, void (*free_func)(void *),
 		    char (*comp_func)(void*, void*))
 {
 	node_t *prev_iter;
@@ -83,24 +85,22 @@ node_t *delete_node(node_t *head, void *value, void (*free_func)(void *),
 	if (curr_iter == NULL)
 		return NULL;
 
-
-	printf("%d\n", comp_func(curr_iter->data, value));
 	if (comp_func(curr_iter->data, value)) {
-			// printf("here\n");
-
 		curr_iter = head->next;
+		if (curr_iter == *tail) {
+			*tail = NULL;
+		}
 		free_node(head, free_func);
 		return curr_iter;
 	}
-
-	printf("here\n");
 
 	prev_iter = curr_iter;
 	curr_iter = curr_iter->next;
 	while (curr_iter != NULL) {
 		if (comp_func(curr_iter->data, value)) {
-	// printf("here\n");
-
+			if (curr_iter == *tail) {
+				*tail = prev_iter;
+			}
 			prev_iter->next = curr_iter->next;
 			free_node(curr_iter, free_func);
 			break;
@@ -112,7 +112,7 @@ node_t *delete_node(node_t *head, void *value, void (*free_func)(void *),
 	return head;
 }
 
-node_t *remove_last(node_t *head, void(*free_func)(void *))
+node_t *remove_last(node_t *head, node_t** tail, void(*free_func)(void *))
 {
 	node_t *iter = head;
 
@@ -121,12 +121,13 @@ node_t *remove_last(node_t *head, void(*free_func)(void *))
 
 	if (head->next == NULL) {
 		free_node(head, free_func);
+		tail = NULL;
 		return NULL;
 	}
 
 	while (iter->next->next != NULL)
 		iter = iter->next;
-
+	*tail = iter;
 	free_node(iter->next, free_func);
 	iter->next = NULL;
 

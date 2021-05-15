@@ -7,6 +7,7 @@
 
 #include <sys/types.h>
 #include "utils.h"
+#include "list.h"
 
 #ifdef __unix__
 #include <sys/socket.h>
@@ -23,10 +24,16 @@ typedef int HANDLE;
 #define SEND_FLAGS		0
 #endif
 
+typedef struct page {
+	char* addr;
+	char is_flushed;
+	size_t current_index;
+}page_t;
+
 struct logmemcache_cache {
 	char *service_name;
-	void *ptr;
-	size_t pages;
+	list_t* pages;
+	size_t pages_no;
 };
 
 struct logmemcache_client_st {
@@ -51,5 +58,7 @@ int logmemcache_unsubscribe_os(struct logmemcache_client_st *);
 int logmemcache_add_log_os(struct logmemcache_client_st *,
 	struct client_logline *);
 int logmemcache_flush_os(struct logmemcache_client_st *);
-
+list_t* create_page_list();
+page_t *init_new_page(char *addr);
+void write_to_page(page_t *page, char *data, list_t *page_list);
 #endif

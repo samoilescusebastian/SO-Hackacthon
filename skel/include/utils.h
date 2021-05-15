@@ -38,6 +38,18 @@ typedef int ssize_t;
 
 #define nitems(arr)		(sizeof(arr) / sizeof(*arr))
 
+
+/* useful macro for handling error codes */
+#define DIE(assertion, call_description)				\
+	do {								\
+		if (assertion) {					\
+			fprintf(stderr, "(%s, %d): ",			\
+					__FILE__, __LINE__);		\
+			perror(call_description);			\
+			exit(EXIT_FAILURE);				\
+		}							\
+	} while (0)
+
 /*
  * Permitted operations:
  * connect <name>	// authentication to server
@@ -82,5 +94,6 @@ ssize_t send_data(SOCKET, const void *, size_t, int);
 int current_time_to_string(char *, size_t, const char *);
 int check_old_logfile(char *);
 int init_logdir(char *);
+
 
 #endif

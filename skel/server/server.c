@@ -8,7 +8,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/mman.h>
 #include "../include/server.h"
 
 #ifdef __unix__
@@ -22,6 +25,39 @@ static size_t cache_count;
 static size_t max_caches;
 
 static SOCKET server_socket;
+
+void print_page(void *data) {
+	page_t *page = (page_t*)data;
+
+	printf("address=%p is_flushed=%c current_index=%ld", page->addr, page->is_flushed, page->current_index);
+}
+
+char compare_page(void *data_1, void *data_2) {
+	page_t *page_1 = (page_t *)data_1;
+	page_t *page_2 = (page_t *)data_2;
+
+	return (page_1->addr == page_2->addr);
+}
+
+void free_page(void *data) {
+	page_t* page = (page_t *)data;
+
+	free(page);
+}
+
+list_t* create_page_list() {
+	list_t *list = (list_t *)malloc(sizeof(list_t));
+	pthread_t *thread;
+
+	DIE(list == NULL, "can not alloc memmory!");
+	list->compare_func = compare_page;
+	list->print_func = print_page;
+	list->free_func = free_page;
+	list->size = 0;
+	list->head = NULL;
+
+	return list;
+}
 
 /* Server API */
 static void init_client_list(void)
@@ -92,10 +128,13 @@ static int logmemcache_unsubscribe_client(struct logmemcache_client_st *client)
 }
 
 static int logmemcache_add_log(struct logmemcache_client_st *client,
-	struct client_logline *log)
+ struct client_logline *log)
 {
-
-	return 0;
+ size_t logsize;
+ page_t *page = get_last_element(client->cache->pages);
+ write_to_page(page, log->logline, client->cache->pages);
+ 
+ return 0;
 }
 
 static int logmemcache_flush(struct logmemcache_client_st *client)
@@ -235,19 +274,54 @@ end:
 	return err;
 }
 
-int main(int argc, char *argv[])
+page_t *init_new_page(char *addr)
 {
-	setbuf(stdout, NULL);
-
-	if (argc == 1)
-		logfile_path = strdup("logs_logmemcache");
-	else
-		logfile_path = strdup(argv[1]);
-
-	if (init_logdir(logfile_path) < 0)
-		exit(-1);
-
-	init_server();
-
-	return 0;
+ page_t *new_page = malloc(sizeof(page_t));
+ new_page->addr = addr;
+ new_page->current_index = 0;
+ new_page->is_flushed = 0;
+ 
+ return new_page;
 }
+ 
+void write_to_page(page_t *page, char *data, list_t *page_list)
+{
+	char *mem;
+	page_t *new_page = NULL;
+	size_t pagesize = getpagesize(), copied;
+	size_t data_size = strlen(data);
+	
+	if (pagesize - page->current_index >= data_size)
+	{
+		memcpy(page->addr + page->current_index, data, data_size);
+		page->current_index += data_size;
+	}
+	else
+	{
+		copied = pagesize - page->current_index;
+		memcpy(page->addr + page->current_index, data, copied);
+		page->current_index = pagesize;
+		mem = mmap(NULL, pagesize, PROT_WRITE, MAP_PRIVATE | MAP_FIXED | MAP_ANON, -1, 0);
+		DIE(mem == MAP_FAILED, "failed to map memory!");
+		
+		new_page = init_new_page(mem);
+		memcpy(mem, data + copied, data_size - copied);
+		push_back(page_list, new_page);
+	}
+}
+// int main(int argc, char *argv[])
+// {
+// 	setbuf(stdout, NULL);
+
+// 	if (argc == 1)
+// 		logfile_path = strdup("logs_logmemcache");
+// 	else
+// 		logfile_path = strdup(argv[1]);
+
+// 	if (init_logdir(logfile_path) < 0)
+// 		exit(-1);
+
+// 	init_server();
+
+// 	return 0;
+// }

@@ -1,5 +1,11 @@
 {
     "files.associations": {
-        "struct_utils.h": "c"
+        "struct_utils.h": "c",
+        "server.h": "c",
+        "*.tcc": "c",
+        "deque": "c",
+        "string": "c",
+        "vector": "c",
+        "stat.h": "c"
     }
 }

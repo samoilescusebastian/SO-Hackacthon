@@ -2,14 +2,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "list.h"
+#include "include/list.h"
 #include "include/struct_utils.h"
 
 char push_back(list_t *list, void *data)
 {
 	node_t *new_head;
 
-	new_head = push_node_back(list->head, data);
+	new_head = push_node_back(list->head, data, &list->tail);
+	if (list->tail == NULL) {
+		printf("%p\n", list->tail);
+	}
 	if (new_head == NULL)
 		return ERROR;
 
@@ -80,7 +83,7 @@ char insert_multiple(list_t *list, list_t *new_elements, int pos)
 
 char pop_back(list_t *list)
 {
-	list->head = remove_last(list->head, list->free_func);
+	list->head = remove_last(list->head, &list->tail, list->free_func);
 	if (list->head == NULL)
 		return ERROR;
 
@@ -118,7 +121,7 @@ void free_list(list_t *list)
 char delete_element(list_t *list, void *data)
 {
 
-	list->head  = delete_node(list->head, data, list->free_func,
+	list->head  = delete_node(list->head, &list->tail, data, list->free_func,
 			      list->compare_func);
 	list->size--;
 	return SUCCESS;
@@ -140,4 +143,8 @@ void *get_next_list_it(list_iterator_t *it)
 	(*it) = (*it)->next;
 
 	return data;
+}
+
+void *get_last_element(list_t* list) {
+	return list->tail->data;
 }
